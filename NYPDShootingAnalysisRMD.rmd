@@ -1,0 +1,158 @@
+---
+title: "NYPDShootingAnalysis"
+author: "Blake Davis"
+date: "2023-03-07"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### What is the safest Borough in New York?
+In this R markdown I will attempt to hypothesize which borough is the safest in Ney York in regards to shooting violence by looking at an NYPD data set that chronicles every shooting from 2006 to 2021. New York is subdivided into 5 boroughs, they are called The Bronx, Brooklyn, Manhattan, Queens and Staten Island. I will use a combination of visuals to support my hypothesis and model what appears to be the safest location given the limitations of this data set to see if I can predict what the shooting violence will look like in the future for that respective borough. Pitfalls and criticisms of the data set can be found at the bottom of my RMD.
+
+
+### Libraries
+```{r libraries}
+library(tidyverse)
+library(lubridate)
+library(ggrepel)
+```
+
+
+### Reading Data
+```{r reading_data, echo=TRUE, message=FALSE}
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+myData <- read_csv(url_in)
+```
+
+#### Summary of NYPD Shooting Data 2006-2021
+```{r trim_data, echo=FALSE}
+shooting <- subset(myData, select = -c(OCCUR_TIME, INCIDENT_KEY, JURISDICTION_CODE, PRECINCT, LOCATION_DESC, X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat))
+shooting$OCCUR_DATE <- lubridate::mdy(shooting$OCCUR_DATE)
+shooting$BORO <- as.factor(shooting$BORO)
+shooting$PERP_SEX <- as.factor(shooting$PERP_SEX)
+shooting$PERP_RACE <- as.factor(shooting$PERP_RACE)
+shooting$VIC_SEX <- as.factor(shooting$VIC_SEX)
+shooting$VIC_RACE <- as.factor(shooting$VIC_RACE)
+```
+
+```{r trim_data_summary}
+summary(shooting) 
+```
+
+
+### Data Analyzation: Total Number of Shootings from 2006-2021 Per Borough
+```{r bar_graph_shooting_count, echo=TRUE, message=FALSE}
+shooting_by_area <- shooting %>% count(BORO)
+colnames(shooting_by_area)[colnames((shooting_by_area)) == 'n'] <- 'ShootingIncidents'
+shooting_by_area
+barHeight <- as.vector(shooting_by_area$ShootingIncidents)
+barplot(barHeight,
+ main = "Shootings in NY",
+ xlab = "Neighborhood",
+ ylab = "Shooting Incidents",
+ names.arg = as.vector(shooting_by_area$BORO),
+ col = "purple",
+ horiz = FALSE,
+ cex.names=.7)
+```
+
+This bar graph is a visualization of my table that summarizes the number of shootings per borough in New York from 2006-2021. From this graph we can see that Brooklyn has had the most shootings, followed by the Bronx, Queens and Manhattan. Staten Island has had the fewest shootings. From this data we can hypothesize that Staten Island is the safest borough in New York when it comes to shootings.
+
+
+### Data Analyzation: Breakdown of Ethnicity Per Shooting Count
+```{r pie_chart_ethnicity, echo=TRUE, message=FALSE}
+victims <- shooting %>% count(VIC_RACE)
+colnames(victims)[colnames((victims)) == 'n'] <- 'NumberOfVictims'		#rename column
+
+victimVector = as.vector(victims$NumberOfVictims)
+victimsPieValues <- round(prop.table(victimVector) * 100, digits=2) #Calculate the pie values (in %)
+ggplot(victims, aes(x = "" , y = NumberOfVictims, fill = fct_inorder(VIC_RACE))) +
+  geom_col(width = 1, color = 1) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "Pastel1") +
+  geom_label_repel(data = victims,
+                   aes(label = paste0(victimsPieValues, "%")),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Ethnicity")) +
+  theme_void()
+```
+
+A pie chart depicting the victim ethnicity data from the data summary above. This chart shows the majority of the victims of shootings in New York from 2006 to 2021 where “black”, comprising 71.42% of the data set. Followed by “white Hispanics” at 14.62% and “black Hispanics” at  9.71%.
+
+
+### Data Analyzation: Number of Shootings Per Year Per Borough
+```{r linear_graph, echo=TRUE, message=FALSE}
+shooting_by_date <- shooting %>% count(BORO, OCCUR_DATE)
+colnames(shooting_by_date)[colnames(shooting_by_date) == 'n'] <- 'NumberIncidents'
+
+bronx <- shooting_by_date[shooting_by_date$BORO == 'BRONX', ]
+brooklyn <- shooting_by_date[shooting_by_date$BORO == 'BROOKLYN', ]
+manhattan <- shooting_by_date[shooting_by_date$BORO == 'MANHATTAN', ]
+queens <- shooting_by_date[shooting_by_date$BORO == 'QUEENS', ]
+staten <- shooting_by_date[shooting_by_date$BORO == 'STATEN ISLAND', ]
+
+bronx <- bronx %>% group_by(Year = as.integer(format(OCCUR_DATE, '%Y'))) %>%
+					 mutate(TotalIncidents = sum(NumberIncidents)) %>%
+					 select(BORO, Year, TotalIncidents)
+brooklyn <- brooklyn %>% group_by(Year = as.integer(format(OCCUR_DATE, '%Y'))) %>%
+					 mutate(TotalIncidents = sum(NumberIncidents)) %>%
+					 select(BORO, Year, TotalIncidents)
+manhattan <- manhattan %>% group_by(Year = as.integer(format(OCCUR_DATE, '%Y'))) %>%
+					 mutate(TotalIncidents = sum(NumberIncidents)) %>%
+					 select(BORO, Year, TotalIncidents)
+queens <- queens %>% group_by(Year = as.integer(format(OCCUR_DATE, '%Y'))) %>%
+					 mutate(TotalIncidents = sum(NumberIncidents)) %>%
+					 select(BORO, Year, TotalIncidents)
+staten <- staten %>% group_by(Year = as.integer(format(OCCUR_DATE, '%Y'))) %>%
+					 mutate(TotalIncidents = sum(NumberIncidents)) %>%
+					 select(BORO, Year, TotalIncidents)
+
+bronx <- unique(bronx[, c('BORO', 'Year', 'TotalIncidents')])
+brooklyn <- unique(brooklyn[, c('BORO', 'Year', 'TotalIncidents')])
+manhattan <- unique(manhattan[, c('BORO', 'Year', 'TotalIncidents')])
+queens <- unique(queens[, c('BORO', 'Year', 'TotalIncidents')])
+staten <- unique(staten[, c('BORO', 'Year', 'TotalIncidents')])
+
+allboro <- rbind(brooklyn, bronx, manhattan, staten, queens)
+
+ggplot(allboro, aes(x=Year, y=TotalIncidents, colour = BORO)) + geom_line() +
+     ggtitle("Shootings per Year per Borough") +
+     xlab("Years") +
+     ylab("Number of Shootings") + 
+     theme(plot.title = element_text(hjust = 0.5))
+```
+
+This graph plots the number of shootings per year per borough. While the first visualization showed the total number of shootings in each borough, this graph breaks the data down further and summarizes by year. This is helpful because it will show outliers in the data set and show where each borough is trending. From these trends we can see the Bronx, Manhattan and Queens have been getting more dangerous over time, with an increase in the number of shootings while Brooklyn and Staten Island have been getting safer with a decline in the number of shootings. From the limited data set available, Staten Island is still the safest borough with the fewest number of shootings and the data trend decreasing.
+
+
+### Creating a Model
+```{r model, echo=TRUE, message=FALSE}
+mod <- lm(TotalIncidents ~ Year, data = staten)
+prediction <- predict(mod)
+prediction <- as.vector(prediction)
+staten_with_predict <- cbind(staten, prediction)
+colnames(staten_with_predict)[colnames(staten_with_predict) == '...4'] <- 'pred'
+staten_with_predict %>% ggplot() +
+						geom_line(aes(x=Year, y =TotalIncidents), color = "blue" ) +
+						geom_line(aes(x=Year, y =pred), color = "red" )+
+	ggtitle("Staten Island Shooting Data") +
+     xlab("Years") +
+     ylab("Number of Shootings") + 
+     theme(plot.title = element_text(hjust = 0.5))
+```
+
+My linear regression model attempts to show the trend of the shooting data in Staten Island and predict where it is going in the future. My model confirms that Staten Island is the safest of the boroughs of New York in regards to shooting violence given the confines of the data set.
+
+#### Summary of Linear Regression Model
+```{r model_summary, echo=TRUE, message=FALSE}
+summary(lm(TotalIncidents ~ Year, data = staten))
+```
+
+Looking at my model trend line the a value is 2681.3162 and the b value is -1.3088. These a and b values are used to calculate the slope of my model (in red). My model predicts that per year their will be a decrease in shootings by 1.3088. The accuracy of my model can be tested with the R squared value given in the lm summary table. High accuracy models will be near 1 while low accuracy models will be near 0. My R squared value is .3232 which means my model explains 32.32% of the data set for Staten Island. They key areas of divergence are 2007-2010 and 2017-2020. In both of these areas the model peaks and troughs before regressing to a more median value.
+
+
+### Conclusions & Biases
+For this RMD analysis I chose to look into the safest areas of New York. My bias is inherently in the topic that I chose to look into because safety in itself can be very subjective. Gun violence is high on the list of my fears due to the seemingly unpredictable nature of it. I investigated the violence per borough and divided them up to determine where I would like to live if I had to choose one option. Based on my graphs and charts it appears that Staten Island is by far the safest in respect to gun violence. This hypothesis is made with a few different additional counts of bias. For example, there is an assumption that gun violence and shootings are a good approximation for overall violence and while that might be true there is nothing in the dataset that confirms or denies this. Additionally presenting the data in this way gives bias towards smaller boroughs. While population isn’t given in this dataset, it is known that Staten Island has a much smaller population then Brooklyn. Choosing to breakdown race violence can introduce bias as well. If the population of a borough is predominantly one race, that race will be more heavily represented in crimes. Unfortunately population per ethnicity was not present in the dataset to break things into per hundred or thousand to make it evenly distributed across the represented ethnicities. There is bias in everything we do, I tried to mitigate the bias I introduced into my report by looking at the data from multiple angles. For example in chart one I looked at the safest borough by taking a sum total of all the gun violence and then in chart 3 I graphed the gun violence sum per year. It would have been possible that one borough had a terrible year skewing the data upward.
